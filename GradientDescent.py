@@ -56,13 +56,15 @@ def gradient_steepest_descent(x0, function_gradient, stopping_tolerance, step_si
     :param stopping_tolerance: The algorithm stops if ||g(x)|| <= stopping_tolerance * min(1, ||g(x0)||)
     :param step_size_rule: Defines the step size rule that should be used.
     :param maximum_iterations: The maximum number of iterations to be made.
-    :return: Stationary point of the given function after termination.
+    :return: Stationary point of the given function after termination. All points created during execution.
     """
     iterations = 0
     _, gradient_x0 = function_gradient(x0, False)
     norm_gradient_x0 = min(1.00, linalg.norm(gradient_x0))
     gradient = gradient_x0
     xk = x0
+    # keep track of iterates
+    xs = []
     # while stopping criterion not met
     while linalg.norm(gradient) > stopping_tolerance * norm_gradient_x0:
         # compute search direction
@@ -73,91 +75,52 @@ def gradient_steepest_descent(x0, function_gradient, stopping_tolerance, step_si
         step_size = step_size_rule(xk, search_direction, directional_derivative, function_gradient, function_value)
         # update
         xk = xk + step_size * search_direction
+        # update iterates
+        xs.append(xk)
         # update iteration count
         iterations += 1
         if iterations >= maximum_iterations:
             break
-    return xk
+    return xk, xs
 
 
-def plt_dynamic(fig, x, y, ax, colors=['b']):
-    for color in colors:
-        ax.plot(x, y, color)
-    fig.canvas.draw()
-
-
-
-
-def plot_gradient_descent(x0, function_gradient, stopping_tolerance, step_size_rule, maximum_iterations):
+def plot_iterates(function, iterates):
     """
-    Only for two dimensional functions.
-    :param x0:
-    :param function_gradient:
-    :param stopping_tolerance:
-    :param step_size_rule:
-    :param maximum_iterations:
-    :return:
+    Visualizes the sequence of iteration points of the gradient descent method. Saves the result as a gif.
+    :param function: A two-dimensional function.
+    :param iterates: The iteration points corresponding to the minimization of the function.
     """
-    fig, ax = plt.subplots(1, 1)
-    ax.set_xlabel('x')
-    ax.set_ylabel('y')
-    xs, ys = [], []
+    iterates = np.array(iterates)
+    xs = iterates[:, 0]
+    ys = iterates[:, 1]
 
-    iterations = 0
-    _, gradient_x0 = function_gradient(x0, False)
-    norm_gradient_x0 = min(1.00, linalg.norm(gradient_x0))
-    gradient = gradient_x0
-    xk = x0
-    xs.append(xk[0])
-    ys.append(xk[1])
-    # while stopping criterion not met
-    while linalg.norm(gradient) > stopping_tolerance * norm_gradient_x0:
-        # compute search direction
-        function_value, gradient = function_gradient(xk)
-        search_direction = - gradient
-        directional_derivative = np.matmul(np.transpose(gradient), search_direction)
-        # compute step size
-        step_size = step_size_rule(xk, search_direction, directional_derivative, function_gradient, function_value)
-        # update
-        xk = xk + step_size * search_direction
-        # update plot
-        xs.append(xk[0])
-        ys.append(xk[1])
-        # update iteration count
-        iterations += 1
-        if iterations >= maximum_iterations:
-            break
-    return xk, xs, ys
+    fig = plt.figure()
+    ax = plt.axes(xlim=(min(xs) - 1, max(xs) + 1), ylim=(min(ys) - 1, max(ys) + 1))
+    line, = ax.plot([], [], lw=1)
+    line.set_color("grey")
+
+    def init():
+        line.set_data([], [])
+        return line,
+
+    def animate(i):
+        x = xs[0:i]
+        y = ys[0:i]
+        line.set_data(x, y)
+        return line,
+
+    contour(function, xs, ys)
+    animation = FuncAnimation(fig, animate, init_func=init, frames=100, interval=100, blit=True)
+    animation.save("gradient_descent.gif", writer="pillow")
 
 
-x_result = gradient_steepest_descent(np.array((9, 3)), quadratic_function, 0.001, armijo, 1000)
-print("result for quadratic function", x_result)
-
-x_result = gradient_steepest_descent(np.array((0, -3)), rosenbrock, 0.001, armijo, 1000)
-print("result for rosenbrock function", x_result)
-
-
-x_result, xs, ys = plot_gradient_descent(np.array((0, -3)), rosenbrock, 0.001, armijo, 1000)
-
-fig = plt.figure()
-ax = plt.axes(xlim=(min(xs) - 1, max(xs) + 1), ylim=(min(ys) - 1, max(ys) + 1))
-line, = ax.plot([], [], lw=1)
-line.set_color("grey")
-
-
-def init():
-    line.set_data([], [])
-    return line,
-
-
-def animate(i):
-    x = xs[0:i]
-    y = ys[0:i]
-    line.set_data(x, y)
-    return line,
-
-
-def contour(function):
+def contour(function, xs, ys):
+    """
+    Plots the landscape of a two-dimensional function.
+    :param function: The two-dimensional function to plot.
+    :param xs: Values on the x-axis (iterates).
+    :param ys: Values on the y-axis (iterates).
+    """
     x = np.linspace(min(xs) - 1, max(xs) + 1, 100)
     y = np.linspace(min(ys) - 1, max(ys) + 1, 100)
 
@@ -168,6 +131,9 @@ def contour(function):
     plt.colorbar()
 
 
-contour(rosenbrock)
-anim = FuncAnimation(fig, animate, init_func=init, frames=100, interval=100, blit=True)
-anim.save("gradient_descent.gif", writer="pillow")
+x_result, _ = gradient_steepest_descent(np.array((9, 3)), quadratic_function, 0.001, armijo, 1000)
+print("result for quadratic function", x_result)
+
+x_result, iterates = gradient_steepest_descent(np.array((0, -3)), rosenbrock, 0.001, armijo, 1000)
+print("result for rosenbrock function", x_result)
+plot_iterates(rosenbrock, iterates)
