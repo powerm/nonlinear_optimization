@@ -1,7 +1,13 @@
 import numpy as np
 from numpy import linalg
+from numpy.linalg import solve
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+
+# constants of the angle condition
+alpha1 = 0.001
+alpha2 = 0.1
+p = 1
 
 
 def quadratic_function(x, function_only=False, gradient_only=False, alpha=1):
@@ -23,17 +29,23 @@ def quadratic_function(x, function_only=False, gradient_only=False, alpha=1):
     return function_value, gradient
 
 
-def rosenbrock(x, function_value_only=False, gradient_value_only=False):
-    x1 = x[0]
-    x2 = x[1]
-    function_value = 100 * (x2 - x1**2)**2 + (1 - x1)**2
-    if function_value_only:
-        return function_value
-    gradient = np.array((-400 * (x2 - x1**2) * x1 - 2 * (1 - x1),
-                         200 * (x2 - x1**2)))
-    if gradient_value_only:
+def quadratic_function_gradient(x, function_only=False, gradient_only=False, alpha=1):
+    """
+    :param function_value_only:
+    :param alpha:
+    :param x: Two dimensional vector.
+    :return: Value and gradient of the function x_1^2 + alpha * x_2^2.
+    """
+    factor = np.array((1, alpha))
+    # calculate gradient
+    gradient = 2 * x * factor
+    if function_only:
         return gradient
-    return function_value, gradient
+    # calculate hessian
+    hessian = np.array([[2, 0], [0, 2 * alpha]])
+    if gradient_only:
+        return hessian
+    return gradient, hessian
 
 
 def armijo(xk, search_direction, directional_derivative, function_gradient, objective_function_value, gamma=0.001, beta=0.5):
@@ -54,45 +66,7 @@ def armijo(xk, search_direction, directional_derivative, function_gradient, obje
     return step_size
 
 
-def powell_wolfe(xk, search_direction, directional_derivative, function_gradient, objective_function_value, gamma=0.001, eta=0.9):
-    """
-    :param xk: The current point.
-    :param search_direction: The current search direction.
-    :param directional_derivative: The current directional derivative in the search direction.
-    :param function_gradient: Function that returns the value of the objective function.
-    :param objective_function_value: The current objective function value.
-    :param gamma: Constant 0 < gamma < 0.5 of Powell-Wolfe condition.
-    :param eta: Constant gamma < eta < 1 of the Powell-Wolfe condition.
-    :return: Step size satisfying the Powell-Wolfe condition.
-    """
-    if function_gradient(xk + search_direction, True) <= objective_function_value + gamma * directional_derivative:
-        if np.matmul(np.transpose(function_gradient(xk + search_direction, False, True)), search_direction)\
-                >= eta * directional_derivative:
-            return 1
-        else:
-            t_u = 2
-            while function_gradient(xk + t_u * search_direction, True) <= \
-                    objective_function_value + gamma * directional_derivative * t_u:
-                t_u *= 2
-            t_l = 0.5 * t_u
-    else:
-        t_l = 0.5
-        while function_gradient(xk + t_l * search_direction, True) > \
-                objective_function_value + gamma * directional_derivative * t_l:
-            t_l *= 0.5
-        t_u = 2 * t_l
-    while np.matmul(np.transpose(function_gradient(xk + t_l * search_direction, False, True)), search_direction) < \
-            eta * directional_derivative:
-        t_c = 0.5 * (t_l + t_u)
-        if function_gradient(xk + t_c * search_direction, True) <= \
-                objective_function_value + gamma * directional_derivative * t_c:
-            t_l = t_c
-        else:
-            t_u = t_c
-    return t_l
-
-
-def gradient_steepest_descent(x0, function_gradient, stopping_tolerance, step_size_rule, maximum_iterations):
+def globalized_newton_method(x0, function_gradient, stopping_tolerance, step_size_rule, maximum_iterations):
     """
     :param x0: Starting point (column vector).
     :param function_gradient: Function that returns the value and gradient of the objective function.
@@ -102,22 +76,25 @@ def gradient_steepest_descent(x0, function_gradient, stopping_tolerance, step_si
     :return: Stationary point of the given function after termination. All points created during execution.
     """
     iterations = 0
-    _, gradient_x0 = function_gradient(x0, False)
+    gradient_x0, _ = function_gradient(x0, False)
     norm_gradient_x0 = min(1.00, linalg.norm(gradient_x0))
     gradient = gradient_x0
     xk = x0
-    # keep track of iterates
     xs = [x0]
     # while stopping criterion not met
     while linalg.norm(gradient) > stopping_tolerance * norm_gradient_x0:
-        # compute search direction
-        function_value, gradient = function_gradient(xk)
-        search_direction = - gradient
-        directional_derivative = np.matmul(np.transpose(gradient), search_direction)
+        # newton step
+        gradient, hessian = function_gradient(xk)
+        search_direction = solve(hessian, -gradient)
+        # check if it not satisfies the angle condition variant, then choose gradient direction
+        if - np.matmul(np.transpose(gradient), search_direction) < \
+            min(alpha1, alpha2 * np.power(linalg.norm(gradient), p)) * linalg.norm(gradient) * linalg.norm(search_direction):
+            search_direction = - gradient
         # compute step size
-        step_size = step_size_rule(xk, search_direction, directional_derivative, function_gradient, function_value)
+        directional_derivative = np.matmul(np.transpose(gradient), search_direction)
+        step_size = step_size_rule(xk, search_direction, directional_derivative, function_gradient, gradient)
         # update
-        xk = xk + step_size * search_direction
+        xk = xk * step_size * search_direction
         # update iterates
         xs.append(xk)
         # update iteration count
@@ -154,7 +131,7 @@ def plot_iterates(function, iterates):
 
     contour(function, xs, ys)
     animation = FuncAnimation(fig, animate, init_func=init, frames=100, interval=100, blit=True)
-    animation.save("gradient_descent.gif", writer="pillow")
+    animation.save("gradient_descent_newton.gif", writer="pillow")
 
 
 def contour(function, xs, ys):
@@ -174,10 +151,6 @@ def contour(function, xs, ys):
     plt.colorbar()
 
 
-x_result, iterates = gradient_steepest_descent(np.array((9, 3)), quadratic_function, 0.001, powell_wolfe, 5000)
+x_result, iterates = globalized_newton_method(np.array((9, 3)), quadratic_function_gradient, 0.001, armijo, 100)
 print("result for quadratic function", x_result)
 plot_iterates(quadratic_function, iterates)
-
-#x_result, iterates = gradient_steepest_descent(np.array((0, -3)), rosenbrock, 0.001, powell_wolfe, 5000)
-#print("result for rosenbrock function", x_result)
-#plot_iterates(rosenbrock, iterates)
