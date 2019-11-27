@@ -53,6 +53,16 @@ def armijo(xk, search_direction, directional_derivative, function_gradient, obje
 
 
 def powell_wolfe(xk, search_direction, directional_derivative, function_gradient, objective_function_value, gamma=0.001, eta=0.9):
+    """
+    :param xk: The current point.
+    :param search_direction: The current search direction.
+    :param directional_derivative: The current directional derivative in the search direction.
+    :param function_gradient: Function that returns the value of the objective function.
+    :param objective_function_value: The current objective function value.
+    :param gamma: Constant 0 < gamma < 0.5 of Powell-Wolfe condition.
+    :param eta: Constant gamma < eta < 1 of the Powell-Wolfe condition.
+    :return: Step size satisfying the Powell-Wolfe condition.
+    """
     if function_gradient(xk + search_direction, True) <= objective_function_value + gamma * directional_derivative:
         if np.matmul(np.transpose(function_gradient(xk + search_direction, False, True)), search_direction)\
                 >= eta * directional_derivative:
@@ -123,7 +133,6 @@ def plot_iterates(function, iterates):
     :param iterates: The iteration points corresponding to the minimization of the function.
     """
     iterates = np.array(iterates)
-    print(len(iterates))
     xs = iterates[:, 0]
     ys = iterates[:, 1]
 
