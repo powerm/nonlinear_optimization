@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 
-def quadratic_function(x, function_value_only=False, alpha=1):
+def quadratic_function(x, function_value_only=False, gradient_value_only=False, alpha=1):
     """
     :param function_value_only:
     :param alpha:
@@ -16,10 +16,12 @@ def quadratic_function(x, function_value_only=False, alpha=1):
     if function_value_only:
         return function_value
     gradient = 2 * x * factor
+    if gradient_value_only:
+        return gradient
     return function_value, gradient
 
 
-def rosenbrock(x, function_value_only=False):
+def rosenbrock(x, function_value_only=False, gradient_value_only=False):
     x1 = x[0]
     x2 = x[1]
     function_value = 100 * (x2 - x1**2)**2 + (1 - x1)**2
@@ -27,6 +29,8 @@ def rosenbrock(x, function_value_only=False):
         return function_value
     gradient = np.array((-400 * (x2 - x1**2) * x1 - 2 * (1 - x1),
                          200 * (x2 - x1**2)))
+    if gradient_value_only:
+        return gradient
     return function_value, gradient
 
 
@@ -46,6 +50,34 @@ def armijo(xk, search_direction, directional_derivative, function_gradient, obje
             objective_function_value + gamma * step_size * directional_derivative).all():
         step_size *= beta
     return step_size
+
+
+def powell_wolfe(xk, search_direction, directional_derivative, function_gradient, objective_function_value, gamma=0.001, eta=0.9):
+    if function_gradient(xk + search_direction, True) <= objective_function_value + gamma * directional_derivative:
+        if np.matmul(np.transpose(function_gradient(xk + search_direction, False, True)), search_direction)\
+                >= eta * directional_derivative:
+            return 1
+        else:
+            t_u = 2
+            while function_gradient(xk + t_u * search_direction, True) <= \
+                    objective_function_value + gamma * directional_derivative * t_u:
+                t_u *= 2
+            t_l = 0.5 * t_u
+    else:
+        t_l = 0.5
+        while function_gradient(xk + t_l * search_direction, True) > \
+                objective_function_value + gamma * directional_derivative * t_l:
+            t_l *= 0.5
+        t_u = 2 * t_l
+    while np.matmul(np.transpose(function_gradient(xk + t_l * search_direction, False, True)), search_direction) < \
+            eta * directional_derivative:
+        t_c = 0.5 * (t_l + t_u)
+        if function_gradient(xk + t_c * search_direction, True) <= \
+                objective_function_value + gamma * directional_derivative * t_c:
+            t_l = t_c
+        else:
+            t_u = t_c
+    return t_l
 
 
 def gradient_steepest_descent(x0, function_gradient, stopping_tolerance, step_size_rule, maximum_iterations):
@@ -91,6 +123,7 @@ def plot_iterates(function, iterates):
     :param iterates: The iteration points corresponding to the minimization of the function.
     """
     iterates = np.array(iterates)
+    print(len(iterates))
     xs = iterates[:, 0]
     ys = iterates[:, 1]
 
@@ -131,9 +164,9 @@ def contour(function, xs, ys):
     plt.colorbar()
 
 
-x_result, _ = gradient_steepest_descent(np.array((9, 3)), quadratic_function, 0.001, armijo, 1000)
+x_result, _ = gradient_steepest_descent(np.array((9, 3)), quadratic_function, 0.001, powell_wolfe, 5000)
 print("result for quadratic function", x_result)
 
-x_result, iterates = gradient_steepest_descent(np.array((0, -3)), rosenbrock, 0.001, armijo, 1000)
+x_result, iterates = gradient_steepest_descent(np.array((0, -3)), rosenbrock, 0.001, powell_wolfe, 5000)
 print("result for rosenbrock function", x_result)
 plot_iterates(rosenbrock, iterates)
