@@ -10,3 +10,5 @@ Repository for the programming exercises of the lecture nonlinear optimization.
 
 
 ## General Descent Procedure with Inexact Newton-Conjugate-Gradient Method
+
+## Globalized BFGS Method
